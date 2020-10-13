@@ -48,7 +48,11 @@ module exu_alu_ctl
    output logic [31:1] pc_ff,             // flopped PC
 
    output logic pred_correct,             // NPC control
-   output predict_pkt_t predict_p_ff      // Predicted branch structure
+   output predict_pkt_t predict_p_ff,      // Predicted branch structure
+   //NIBA
+   output logic is_branch,				  //if instruction is branch type
+   output logic is_branch_t		          //if instruction is branch type and also taken
+   //NIBA
 
   );
 
@@ -204,7 +208,18 @@ module exu_alu_ctl
                          (ap.blt & lt) |
                          (ap.bge & ge) |
                          (any_jal);
-
+   //NIBA
+   assign is_branch = 	 (ap.beq) |
+                         (ap.bne) |
+                         (ap.blt) |
+                         (ap.bge) ;
+						 
+   assign is_branch_t = (ap.beq & eq) |
+							(ap.bne & ne) |
+							(ap.blt & lt) |
+							(ap.bge & ge) ;
+   //NIBA
+	
    // for a conditional br pcout[] will be the opposite of the branch prediction
    // for jal or pcall, it will be the link address pc+2 or pc+4
 

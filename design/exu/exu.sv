@@ -203,7 +203,18 @@ module exu
    output logic exu_pmu_i0_pc4,                                        // to PMU - I0 E4 PC
    output logic exu_pmu_i1_br_misp,                                    // to PMU - I1 E4 branch mispredict
    output logic exu_pmu_i1_br_ataken,                                  // to PMU - I1 E4 taken
-   output logic exu_pmu_i1_pc4                                         // to PMU - I1 E4 PC
+   output logic exu_pmu_i1_pc4,                                        // to PMU - I1 E4 PC
+   
+   //NIBA
+   output logic exu_i0_is_branch_e1,
+   output logic exu_i1_is_branch_e1,
+   output logic exu_i0_is_branch_e4,
+   output logic exu_i1_is_branch_e4,
+   output logic exu_i0_is_branch_t_e1,
+   output logic exu_i1_is_branch_t_e1,
+   output logic exu_i0_is_branch_t_e4,
+   output logic exu_i1_is_branch_t_e4
+   //NIBA
 
    );
 
@@ -414,7 +425,9 @@ module exu
                           .flush_path    ( exu_i0_flush_path_e1[31:1]  ),   // O
                           .predict_p_ff  ( i0_predict_p_e1             ),   // O
                           .pc_ff         ( exu_i0_pc_e1[31:1]          ),   // O
-                          .pred_correct  ( i0_pred_correct_upper_e1    )    // O
+                          .pred_correct  ( i0_pred_correct_upper_e1    ),   // O
+						  .is_branch	 (	exu_i0_is_branch_e1		   ),   // O
+						  .is_branch_t	 (	exu_i0_is_branch_t_e1	   )    // O
                           );
 
 
@@ -434,7 +447,9 @@ module exu
                           .flush_path    ( exu_i1_flush_path_e1[31:1]  ),   // O
                           .predict_p_ff  ( i1_predict_p_e1             ),   // O
                           .pc_ff         ( exu_i1_pc_e1[31:1]          ),   // O
-                          .pred_correct  ( i1_pred_correct_upper_e1    )    // O
+                          .pred_correct  ( i1_pred_correct_upper_e1    ),   // O
+						  .is_branch	 ( exu_i1_is_branch_e1		   ),   // O
+						  .is_branch_t	 ( exu_i1_is_branch_t_e1	   )    // O
                           );
 
    predict_pkt_t i0_pp_e2, i0_pp_e3, i0_pp_e4_in;
@@ -605,7 +620,9 @@ module exu
                           .flush_path    ( exu_i0_flush_path_e4[31:1]  ),   // O
                           .predict_p_ff  ( i0_predict_p_e4             ),   // O
                           .pc_ff         ( i0_alu_pc_nc[31:1]          ),   // O
-                          .pred_correct  ( i0_pred_correct_lower_e4    )    // O
+                          .pred_correct  ( i0_pred_correct_lower_e4    ),   // O
+						  .is_branch	 ( exu_i0_is_branch_e4		   ),   // O
+						  .is_branch_t	 ( exu_i0_is_branch_t_e4	   )    // O
                           );
 
 
@@ -625,7 +642,9 @@ module exu
                           .flush_path    ( exu_i1_flush_path_e4[31:1]  ),   // O
                           .predict_p_ff  ( i1_predict_p_e4             ),   // O
                           .pc_ff         ( i1_alu_pc_nc[31:1]          ),   // O
-                          .pred_correct  ( i1_pred_correct_lower_e4    )    // O
+                          .pred_correct  ( i1_pred_correct_lower_e4    ),   // O
+						  .is_branch	 ( exu_i1_is_branch_e4		   ),   // O
+						  .is_branch_t	 ( exu_i1_is_branch_t_e4	   )    // O
                           );
 
 `endif      // RV_NO_SECONDARY_ALU  }}

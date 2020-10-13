@@ -56,7 +56,7 @@ module dec_decode_ctl
 
    input logic dec_i0_icaf_d,                         // icache access fault
    input logic dec_i1_icaf_d,
-   input logic dec_i0_icaf_second_d,                      // i0 instruction access fault on second 2B of 4B inst
+   input logic dec_i0_icaf_f1_d,                      // i0 instruction access fault at decode for f1 fetch group
    input logic dec_i0_perr_d,                         // icache parity error
    input logic dec_i1_perr_d,
    input logic dec_i0_sbecc_d,                        // icache/iccm single-bit error
@@ -276,7 +276,18 @@ module dec_decode_ctl
 
    output logic       dec_i0_load_e4,          // pipe down if load is i0 or not in case of lsu_freeze
 
-   input  logic        scan_mode
+   input  logic        scan_mode,
+   
+   //NIBA
+   input logic exu_i0_is_branch_e1,
+   input logic exu_i1_is_branch_e1,
+   input logic exu_i0_is_branch_e4,
+   input logic exu_i1_is_branch_e4,
+   input logic exu_i0_is_branch_t_e1,
+   input logic exu_i1_is_branch_t_e1,
+   input logic exu_i0_is_branch_t_e4,
+   input logic exu_i1_is_branch_t_e4
+   //NIBA
    );
 
 
@@ -570,6 +581,18 @@ module dec_decode_ctl
    logic [31:1] i0_pc_wb, i0_pc_wb1;
    logic [31:1]           i1_pc_wb1;
    logic [31:1] last_pc_e2;
+   
+   //NIBA
+   logic i0_is_branch_e1, i0_is_branch_e2, i0_is_branch_e3, i0_is_branch_e4, i0_is_branch_e4_final, i0_is_branch_wb;
+   logic i1_is_branch_e1, i1_is_branch_e2, i1_is_branch_e3, i1_is_branch_e4, i1_is_branch_e4_final, i1_is_branch_wb;
+   logic i0_is_branch_t_e1, i0_is_branch_t_e2, i0_is_branch_t_e3, i0_is_branch_t_e4, i0_is_branch_t_e4_final, i0_is_branch_t_wb;
+   logic i1_is_branch_t_e1, i1_is_branch_t_e2, i1_is_branch_t_e3, i1_is_branch_t_e4, i1_is_branch_t_e4_final, i1_is_branch_t_wb;
+   
+   logic [31:0] branches_counter, branches_taken_counter, new_branches_counter, new_branches_taken_counter;
+   logic i0_counters_en, i1_counters_en;
+   logic counting_on, new_counting_on;
+   logic [31:0] new_br_count_i0, new_brt_count_i0;
+   //NIBA
 
    reg_pkt_t i0r, i1r;
 
@@ -1342,7 +1365,6 @@ end : cam_array
 
    assign i1_block_d = leak1_i1_stall |
                       (i0_jal) |            // no i1 after a jal, will flush
-              (((|dec_i0_trigger_match_d[3:0]) | ((i0_dp.condbr | i0_dp.jal) & i0_secondary_d)) & i1_dp.load ) | // if branch or branch error then don't allow i1 load
                        i0_presync | i0_postsync |
                        i1_dp.presync | i1_dp.postsync |
                        i1_icaf_d |        // instruction access fault is i0 only
@@ -1940,7 +1962,7 @@ end : cam_array
 
    assign dt.legal     =  i0_legal_decode_d                ;
    assign dt.icaf      =  i0_icaf_d & i0_legal_decode_d;            // dbecc is icaf exception
-   assign dt.icaf_second   =  dec_i0_icaf_second_d & i0_legal_decode_d;     // this includes icaf and dbecc
+   assign dt.icaf_f1   =  dec_i0_icaf_f1_d & i0_legal_decode_d;     // this includes icaf and dbecc
    assign dt.perr      =   dec_i0_perr_d & i0_legal_decode_d;
    assign dt.sbecc     =   dec_i0_sbecc_d & i0_legal_decode_d;
    assign dt.fence_i   = (i0_dp.fence_i | debug_fence_i) & i0_legal_decode_d;
@@ -2086,6 +2108,26 @@ end : cam_array
    assign dd.csrwen = dec_csr_wen_unq_d & i0_legal_decode_d;
    assign dd.csrwonly = i0_csr_write_only_d & dec_i0_decode_d;
    assign dd.csrwaddr[11:0] = i0[31:20];    // csr write address for rd==0 case
+   
+   //NIBA
+   assign dd.i0counters = i0_legal_decode_d;
+   assign dd.i1counters = dec_i1_decode_d;
+   
+   assign dd.i0_bcount_reset = i0_dp.bcount_reset;
+   assign dd.i0_btcount_reset = i0_dp.btcount_reset;
+   assign dd.i0_start_counters = i0_dp.start_counters;
+   assign dd.i0_stop_counters = i0_dp.stop_counters;
+   assign dd.i0_bcount_read = i0_dp.bcount_read;
+   assign dd.i0_btcount_read = i0_dp.btcount_read;
+   
+   assign dd.i1_bcount_reset = i1_dp.bcount_reset;
+   assign dd.i1_btcount_reset = i1_dp.btcount_reset;
+   assign dd.i1_start_counters = i1_dp.start_counters;
+   assign dd.i1_stop_counters = i1_dp.stop_counters;
+   assign dd.i1_bcount_read = i1_dp.bcount_read;
+   assign dd.i1_btcount_read = i1_dp.btcount_read;
+   //NIBA
+      
 
 
    assign i0_pipe_en[5] = dec_i0_decode_d;
@@ -2140,6 +2182,10 @@ end : cam_array
 
       e1d_in.i0v = e1d.i0v & ~flush_final_e3;
       e1d_in.i1v = e1d.i1v & ~flush_final_e3;
+	  //NIBA
+	  e1d_in.i0counters = e1d.i0counters & ~flush_final_e3;
+	  e1d_in.i1counters = e1d.i1counters & ~flush_final_e3;
+	  //NIBA
       e1d_in.i0valid = e1d.i0valid & ~flush_final_e3;
       e1d_in.i1valid = e1d.i1valid & ~flush_final_e3;
       e1d_in.i0secondary = e1d.i0secondary & ~flush_final_e3;
@@ -2156,6 +2202,10 @@ end : cam_array
 
       e2d_in.i0v = e2d.i0v &         ~flush_final_e3 & ~flush_lower_wb;
       e2d_in.i1v = e2d.i1v &         ~flush_final_e3 & ~flush_lower_wb;
+	  //NIBA
+	  e2d_in.i0counters = e2d.i0counters & ~flush_final_e3 & ~flush_lower_wb;
+	  e2d_in.i1counters = e2d.i1counters & ~flush_final_e3 & ~flush_lower_wb;
+	  //NIBA
       e2d_in.i0valid = e2d.i0valid & ~flush_final_e3 & ~flush_lower_wb;
       e2d_in.i1valid = e2d.i1valid & ~flush_final_e3 & ~flush_lower_wb;
       e2d_in.i0secondary = e2d.i0secondary & ~flush_final_e3 & ~flush_lower_wb;
@@ -2169,7 +2219,11 @@ end : cam_array
 
       e3d_in.i0v = e3d.i0v                              & ~flush_lower_wb;
       e3d_in.i0valid = e3d.i0valid                      & ~flush_lower_wb;
-
+	  //NIBA
+	  e3d_in.i0counters = e3d.i0counters & ~flush_lower_wb;
+	  e3d_in.i1counters = e3d.i1counters & ~flush_lower_wb;
+	  //NIBA
+	
       e3d_in.i0secondary = e3d.i0secondary & ~flush_lower_wb;
 
       e3d_in.i1v = e3d.i1v         & ~i0_flush_final_e3 & ~flush_lower_wb;
@@ -2201,6 +2255,12 @@ end : cam_array
 
       e4d_in.i0v = (e4d.i0v         & ~e4d.i0div & ~flush_lower_wb) | (exu_div_finish & div_waddr_wb[4:0]!=5'b0);
       e4d_in.i0valid = (e4d.i0valid              & ~flush_lower_wb) | exu_div_finish;
+	  
+	  //NIBA
+	  e4d_in.i0counters = e4d.i0counters & ~e4d.i0div & ~flush_lower_wb;
+	  e4d_in.i1counters = e4d.i1counters & ~e4d.i0div & ~flush_lower_wb;
+	  //NIBA
+	  
       // qual the following with div finish; necessary for divides with early exit
       e4d_in.i0secondary = e4d.i0secondary & ~flush_lower_wb & ~exu_div_finish;
       e4d_in.i0load = e4d.i0load & ~flush_lower_wb & ~exu_div_finish;
@@ -2229,6 +2289,11 @@ end : cam_array
    assign dec_i1_wen_wb = i1_wen_wb & ~i1_load_kill_wen;
 
    assign dec_i1_wdata_wb[31:0] = i1_result_wb[31:0];
+   
+   //NIBA
+   assign i0_counters_en = wbd.i0counters & ~dec_tlu_i0_kill_writeb_wb;
+   assign i1_counters_en = wbd.i1counters & ~dec_tlu_i1_kill_writeb_wb;
+   //NIBA
 
 // divide stuff
 
@@ -2280,11 +2345,72 @@ end : cam_array
    rvdffe #(32) i0wbresultff (.*, .en(i0_wb_data_en), .din(i0_result_e4_final[31:0]), .dout(i0_result_wb_raw[31:0]));
    rvdffe #(32) i1wbresultff (.*, .en(i1_wb_data_en), .din(i1_result_e4_final[31:0]), .dout(i1_result_wb_raw[31:0]));
 
-   assign i0_result_wb[31:0] = (div_wen_wb) ? exu_div_result[31:0] : i0_result_wb_raw[31:0];
+   //assign i0_result_wb[31:0] = (div_wen_wb) ? exu_div_result[31:0] : i0_result_wb_raw[31:0];
 
-   assign i1_result_wb[31:0] = i1_result_wb_raw[31:0];
+   //assign i1_result_wb[31:0] = i1_result_wb_raw[31:0];
 
+   //NIBA
+   
+   assign i0_result_wb[31:0] = (div_wen_wb) ? exu_div_result[31:0] : wbd.i0_bcount_read ? branches_counter[31:0] : wbd.i0_btcount_read ? branches_taken_counter[31:0] : i0_result_wb_raw[31:0];
+   assign i1_result_wb[31:0] = wbd.i1_bcount_read ? new_br_count_i0[31:0] : wbd.i1_btcount_read ? new_brt_count_i0[31:0] : i1_result_wb_raw[31:0];
+   
+   assign i0_is_branch_e1 = exu_i0_is_branch_e1;
+   assign i1_is_branch_e1 = exu_i1_is_branch_e1;
+   assign i0_is_branch_t_e1 = exu_i0_is_branch_t_e1;
+   assign i1_is_branch_t_e1 = exu_i1_is_branch_t_e1;
+   
+   // pipe the results down the pipe
+   rvdffs #(1) i0e2branchff (.*, .en(i0_e2_data_en), .din(i0_is_branch_e1), .dout(i0_is_branch_e2));
+   rvdffs #(1) i1e2branchff (.*, .en(i1_e2_data_en), .din(i1_is_branch_e1), .dout(i1_is_branch_e2));
+   rvdffs #(1) i0e2branchtff (.*, .en(i0_e2_data_en), .din(i0_is_branch_t_e1), .dout(i0_is_branch_t_e2));
+   rvdffs #(1) i1e2branchtff (.*, .en(i1_e2_data_en), .din(i1_is_branch_t_e1), .dout(i1_is_branch_t_e2));
 
+   rvdffs #(1) i0e3branchff (.*, .en(i0_e3_data_en), .din(i0_is_branch_e2), .dout(i0_is_branch_e3));
+   rvdffs #(1) i1e3branchff (.*, .en(i1_e3_data_en), .din(i1_is_branch_e2), .dout(i1_is_branch_e3));
+   rvdffs #(1) i0e3branchtff (.*, .en(i0_e3_data_en), .din(i0_is_branch_t_e2), .dout(i0_is_branch_t_e3));
+   rvdffs #(1) i1e3branchtff (.*, .en(i1_e3_data_en), .din(i1_is_branch_t_e2), .dout(i1_is_branch_t_e3));
+   
+   rvdffs #(1) i0e4branchff (.*, .en(i0_e4_data_en), .din(i0_is_branch_e3), .dout(i0_is_branch_e4));
+   rvdffs #(1) i1e4branchff (.*, .en(i1_e4_data_en), .din(i1_is_branch_e3), .dout(i1_is_branch_e4));
+   rvdffs #(1) i0e4branchtff (.*, .en(i0_e4_data_en), .din(i0_is_branch_t_e3), .dout(i0_is_branch_t_e4));
+   rvdffs #(1) i1e4branchtff (.*, .en(i1_e4_data_en), .din(i1_is_branch_t_e3), .dout(i1_is_branch_t_e4));
+   
+   assign i0_is_branch_e4_final = (e4d.i0secondary) ? exu_i0_is_branch_e4 : i0_is_branch_e4;
+   assign i1_is_branch_e4_final = (e4d.i1secondary) ? exu_i1_is_branch_e4 : i1_is_branch_e4;
+   assign i0_is_branch_t_e4_final = (e4d.i0secondary) ? exu_i0_is_branch_t_e4 : i0_is_branch_t_e4;
+   assign i1_is_branch_t_e4_final = (e4d.i1secondary) ? exu_i1_is_branch_t_e4 : i1_is_branch_t_e4;
+   
+   rvdffs #(1) i0wbbranchff (.*, .en(i0_wb_data_en), .din(i0_is_branch_e4_final), .dout(i0_is_branch_wb));
+   rvdffs #(1) i1wbbranchff (.*, .en(i1_wb_data_en), .din(i1_is_branch_e4_final), .dout(i1_is_branch_wb));
+   rvdffs #(1) i0wbbranchtff (.*, .en(i0_wb_data_en), .din(i0_is_branch_t_e4_final), .dout(i0_is_branch_t_wb));
+   rvdffs #(1) i1wbbranchtff (.*, .en(i1_wb_data_en), .din(i1_is_branch_t_e4_final), .dout(i1_is_branch_t_wb));
+   
+   assign new_br_count_i0[31:0] = wbd.i0_bcount_reset ? 32'h0 : 
+							(i0_is_branch_wb & i0_counters_en & i0_wb1_data_en & counting_on) ? (32'h1 + branches_counter[31:0]) :
+							branches_counter[31:0];
+							
+   assign new_branches_counter[31:0] = wbd.i1_bcount_reset ? 32'h0 :
+								 (i1_is_branch_wb & i1_counters_en & i1_wb1_data_en & ~wbd.i0_stop_counters & (counting_on | wbd.i0_start_counters)) ? (32'h1 + new_br_count_i0[31:0]) :
+								 new_br_count_i0[31:0];
+   
+   assign new_brt_count_i0[31:0] = wbd.i0_btcount_reset ? 32'h0 :
+							 (i0_is_branch_t_wb & i0_counters_en & i0_wb1_data_en & counting_on) ? (32'h1 + branches_taken_counter[31:0]) :
+							 branches_taken_counter[31:0];
+   
+   assign new_branches_taken_counter[31:0] = wbd.i1_btcount_reset ? 32'h0 :
+									   (i1_is_branch_t_wb & i1_counters_en & i1_wb1_data_en & ~wbd.i0_stop_counters & (counting_on | wbd.i0_start_counters)) ? (32'h1 + new_brt_count_i0[31:0]) :
+									   new_brt_count_i0[31:0];
+   
+   assign new_counting_on = (wbd.i0_start_counters & i0_wb1_data_en & ~(wbd.i1_stop_counters & i1_wb1_data_en)) | (wbd.i1_start_counters & i1_wb1_data_en) ? 1'b1 :
+							(wbd.i0_stop_counters & i0_wb1_data_en) | (wbd.i1_stop_counters & i1_wb1_data_en) ? 1'b0 :
+							counting_on;
+							
+   rvdffs #(1) countff (.*, .en(1'b1), .din(new_counting_on), .dout(counting_on));
+   
+   rvdffe #(32) branchcountff (.*, .en(1'b1), .din(new_branches_counter[31:0]), .dout(branches_counter[31:0]));
+   rvdffe #(32) branchtcountff (.*, .en(1'b1), .din(new_branches_taken_counter[31:0]), .dout(branches_taken_counter[31:0]));
+   //NIBA
+   
    rvdffe #(12) e1brpcff (.*, .en(i0_e1_data_en), .din(last_br_immed_d[12:1] ), .dout(last_br_immed_e1[12:1]));
    rvdffe #(12) e2brpcff (.*, .en(i0_e2_data_en), .din(last_br_immed_e1[12:1]), .dout(last_br_immed_e2[12:1]));
 
@@ -2504,7 +2630,7 @@ module dec_dec_ctl
 
    assign i[31:0] = inst[31:0];
 
-
+/*
 assign out.alu = (i[2]) | (i[6]) | (!i[25]&i[4]) | (!i[5]&i[4]);
 
 assign out.rs1 = (!i[14]&!i[13]&!i[2]) | (!i[13]&i[11]&!i[2]) | (i[19]&i[13]&!i[2]) | (
@@ -2664,6 +2790,185 @@ assign out.legal = (!i[31]&!i[30]&i[29]&i[28]&!i[27]&!i[26]&!i[25]&!i[24]&!i[23]
     &!i[3]&!i[2]&i[1]&i[0]) | (i[6]&i[5]&!i[4]&i[3]&i[2]&i[1]&i[0]) | (
     i[13]&!i[6]&!i[5]&i[4]&!i[3]&i[1]&i[0]) | (!i[14]&!i[12]&!i[6]&!i[4]
     &!i[3]&!i[2]&i[1]&i[0]) | (!i[6]&i[4]&!i[3]&i[2]&i[1]&i[0]);
+*/
+
+assign out.alu = (i[3]) | (i[6]) | (!i[25]&i[4]) | (!i[5]&i[4]) | (i[2]);
+
+assign out.rs1 = (!i[14]&!i[13]&!i[3]&!i[2]) | (!i[13]&i[11]&!i[3]&!i[2]) | (i[19]
+    &i[13]&!i[2]) | (!i[13]&i[10]&!i[3]&!i[2]) | (i[18]&i[13]&!i[2]) | (
+    !i[13]&i[9]&!i[3]&!i[2]) | (i[17]&i[13]&!i[2]) | (!i[13]&i[8]&!i[3]
+    &!i[2]) | (i[16]&i[13]&!i[2]) | (!i[13]&i[7]&!i[3]&!i[2]) | (i[15]
+    &i[13]&!i[2]) | (!i[4]&!i[3]) | (!i[6]&!i[3]&!i[2]);
+
+assign out.rs2 = (i[6]&!i[4]&!i[2]) | (!i[6]&i[5]&!i[3]&!i[2]);
+
+assign out.imm12 = (!i[13]&!i[12]&i[6]&i[4]&!i[3]) | (!i[4]&!i[3]&i[2]) | (i[13]
+    &!i[5]&i[4]&!i[2]) | (!i[12]&!i[5]&i[4]&!i[3]&!i[2]);
+
+assign out.rd = (i[5]&i[2]) | (i[4]) | (!i[5]&!i[3]);
+
+assign out.shimm5 = (!i[13]&i[12]&!i[5]&i[4]&!i[3]&!i[2]);
+
+assign out.imm20 = (i[6]&i[3]&i[2]) | (i[4]&i[2]);
+
+assign out.pc = (!i[5]&!i[3]&i[2]) | (i[6]&i[3]&i[2]);
+
+assign out.load = (!i[5]&!i[4]&!i[3]);
+
+assign out.store = (!i[6]&i[5]&!i[4]&!i[3]);
+
+assign out.lsu = (!i[6]&!i[4]&!i[3]);
+
+assign out.add = (!i[14]&!i[13]&!i[12]&!i[5]&i[4]&!i[3]) | (!i[5]&!i[3]&i[2]) | (
+    !i[30]&!i[25]&!i[14]&!i[13]&!i[12]&!i[6]&i[4]&!i[2]);
+
+assign out.sub = (i[30]&!i[12]&!i[6]&i[5]&i[4]&!i[2]) | (!i[25]&!i[14]&i[13]&!i[6]
+    &i[4]&!i[2]) | (!i[14]&i[13]&!i[5]&i[4]&!i[2]) | (i[6]&!i[4]&!i[2]);
+
+assign out.land = (i[14]&i[13]&i[12]&!i[5]&!i[2]) | (!i[25]&i[14]&i[13]&i[12]&!i[6]
+    &!i[2]);
+
+assign out.lor = (!i[12]&i[6]&i[4]&!i[3]) | (!i[6]&i[3]&i[2]) | (!i[25]&i[14]&i[13]
+    &!i[12]&i[4]&!i[2]) | (i[11]&i[6]&i[4]&!i[3]) | (i[10]&i[6]&i[4]&!i[3]) | (
+    i[9]&i[6]&i[4]&!i[3]) | (i[8]&i[6]&i[4]&!i[3]) | (i[7]&i[6]&i[4]&!i[3]) | (
+    i[5]&i[4]&i[2]) | (i[13]&i[6]&i[4]) | (i[14]&i[13]&!i[12]&!i[5]&!i[2]);
+
+assign out.lxor = (!i[25]&i[14]&!i[13]&!i[12]&i[4]&!i[2]) | (i[14]&!i[13]&!i[12]
+    &!i[5]&i[4]&!i[2]);
+
+assign out.sll = (!i[25]&!i[14]&!i[13]&i[12]&!i[6]&i[4]&!i[2]);
+
+assign out.sra = (i[30]&!i[13]&i[12]&!i[6]&i[4]&!i[2]);
+
+assign out.srl = (!i[30]&!i[25]&i[14]&!i[13]&i[12]&!i[6]&i[4]&!i[2]);
+
+assign out.slt = (!i[25]&!i[14]&i[13]&!i[6]&i[4]&!i[2]) | (!i[14]&i[13]&!i[5]&i[4]
+    &!i[2]);
+
+assign out.unsign = (!i[14]&i[13]&i[12]&!i[5]&!i[2]) | (i[13]&i[6]&!i[4]&!i[2]) | (
+    i[14]&!i[5]&!i[4]) | (!i[25]&!i[14]&i[13]&i[12]&!i[6]&!i[2]) | (
+    i[25]&i[14]&i[12]&!i[6]&i[5]&!i[2]);
+
+assign out.condbr = (i[6]&!i[4]&!i[2]);
+
+assign out.beq = (!i[14]&!i[12]&i[6]&!i[4]&!i[2]);
+
+assign out.bne = (!i[14]&i[12]&i[6]&!i[4]&!i[2]);
+
+assign out.bge = (i[14]&i[12]&i[5]&!i[4]&!i[2]);
+
+assign out.blt = (i[14]&!i[12]&i[5]&!i[4]&!i[2]);
+
+assign out.jal = (i[6]&i[2]);
+
+assign out.by = (!i[13]&!i[12]&!i[6]&!i[4]&!i[3]);
+
+assign out.half = (i[12]&!i[6]&!i[4]&!i[3]);
+
+assign out.word = (i[13]&!i[6]&!i[4]);
+
+assign out.csr_read = (i[11]&i[6]&i[4]&!i[3]) | (i[10]&i[6]&i[4]&!i[3]) | (i[9]&i[6]
+    &i[4]&!i[3]) | (i[8]&i[6]&i[4]&!i[3]) | (i[7]&i[6]&i[4]&!i[3]) | (
+    i[13]&i[6]&i[4]);
+
+assign out.csr_clr = (i[15]&i[13]&i[12]&i[6]&i[4]) | (i[16]&i[13]&i[12]&i[6]&i[4]) | (
+    i[17]&i[13]&i[12]&i[6]&i[4]) | (i[18]&i[13]&i[12]&i[6]&i[4]) | (
+    i[19]&i[13]&i[12]&i[6]&i[4]);
+
+assign out.csr_set = (i[15]&!i[12]&i[6]&i[4]) | (i[16]&!i[12]&i[6]&i[4]) | (i[17]
+    &!i[12]&i[6]&i[4]) | (i[18]&!i[12]&i[6]&i[4]) | (i[19]&!i[12]&i[6]
+    &i[4]);
+
+assign out.csr_write = (!i[13]&i[12]&i[6]&i[4]&!i[3]);
+
+assign out.csr_imm = (i[14]&!i[13]&i[6]&i[4]) | (i[15]&i[14]&i[6]&i[4]) | (i[16]
+    &i[14]&i[6]&i[4]) | (i[17]&i[14]&i[6]&i[4]) | (i[18]&i[14]&i[6]&i[4]) | (
+    i[19]&i[14]&i[6]&i[4]);
+
+assign out.presync = (i[3]&!i[2]) | (!i[5]&i[3]) | (i[25]&i[14]&!i[6]&i[5]&!i[2]) | (
+    i[15]&i[13]&i[6]&i[4]) | (i[16]&i[13]&i[6]&i[4]) | (i[17]&i[13]&i[6]
+    &i[4]) | (i[18]&i[13]&i[6]&i[4]) | (i[19]&i[13]&i[6]&i[4]) | (!i[13]
+    &i[7]&i[6]&i[4]) | (!i[13]&i[8]&i[6]&i[4]) | (!i[13]&i[9]&i[6]&i[4]) | (
+    !i[13]&i[10]&i[6]&i[4]) | (!i[13]&i[11]&i[6]&i[4]);
+
+assign out.postsync = (i[12]&!i[5]&i[3]) | (!i[22]&!i[13]&!i[12]&i[6]&i[4]) | (i[3]
+    &!i[2]) | (i[25]&i[14]&!i[6]&i[5]&!i[2]) | (i[15]&i[13]&i[6]&i[4]) | (
+    i[16]&i[13]&i[6]&i[4]) | (i[17]&i[13]&i[6]&i[4]) | (i[18]&i[13]&i[6]
+    &i[4]) | (i[19]&i[13]&i[6]&i[4]) | (!i[13]&i[7]&i[6]&i[4]) | (!i[13]
+    &i[8]&i[6]&i[4]) | (!i[13]&i[9]&i[6]&i[4]) | (!i[13]&i[10]&i[6]&i[4]) | (
+    !i[13]&i[11]&i[6]&i[4]);
+
+assign out.ebreak = (!i[22]&i[20]&!i[13]&!i[12]&i[6]&i[4]);
+
+assign out.ecall = (!i[21]&!i[20]&!i[13]&!i[12]&i[6]&i[4]&!i[3]);
+
+assign out.mret = (i[29]&!i[13]&!i[12]&i[6]&i[4]);
+
+assign out.mul = (i[25]&!i[14]&!i[6]&i[5]&i[4]&!i[2]);
+
+assign out.rs1_sign = (i[25]&!i[14]&i[13]&!i[12]&!i[6]&i[5]&i[4]&!i[2]) | (i[25]
+    &!i[14]&!i[13]&i[12]&!i[6]&i[4]&!i[2]);
+
+assign out.rs2_sign = (i[25]&!i[14]&!i[13]&i[12]&!i[6]&i[4]&!i[2]);
+
+assign out.low = (i[25]&!i[14]&!i[13]&!i[12]&i[5]&i[4]&!i[2]);
+
+assign out.div = (i[25]&i[14]&!i[6]&i[5]&!i[2]);
+
+assign out.rem = (i[25]&i[14]&i[13]&!i[6]&i[5]&!i[2]);
+
+assign out.fence = (!i[5]&i[3]&i[2]);
+
+assign out.fence_i = (i[12]&!i[5]&i[3]&i[2]);
+
+assign out.pm_alu = (i[28]&i[22]&!i[13]&!i[12]&i[4]) | (i[4]&i[2]) | (i[3]&!i[2]) | (
+    !i[25]&!i[6]&i[4]) | (!i[5]&i[4]);
+
+assign out.bcount_reset = (!i[12]&!i[5]&!i[4]&i[3]&!i[2]);
+
+assign out.btcount_reset = (i[12]&!i[5]&!i[4]&i[3]&!i[2]);
+
+assign out.start_counters = (!i[12]&i[5]&i[3]&!i[2]);
+
+assign out.stop_counters = (i[12]&i[5]&i[3]&!i[2]);
+
+assign out.bcount_read = (!i[12]&i[4]&i[3]);
+
+assign out.btcount_read = (i[12]&i[4]&i[3]);
+
+assign out.legal = (!i[31]&!i[30]&i[29]&i[28]&!i[27]&!i[26]&!i[25]&!i[24]&!i[23]
+    &!i[22]&i[21]&!i[20]&!i[19]&!i[18]&!i[17]&!i[16]&!i[15]&!i[14]&!i[11]
+    &!i[10]&!i[9]&!i[8]&!i[7]&i[6]&i[5]&i[4]&!i[3]&!i[2]&i[1]&i[0]) | (
+    !i[31]&!i[30]&!i[29]&i[28]&!i[27]&!i[26]&!i[25]&!i[24]&!i[23]&i[22]
+    &!i[21]&i[20]&!i[19]&!i[18]&!i[17]&!i[16]&!i[15]&!i[14]&!i[11]&!i[10]
+    &!i[9]&!i[8]&!i[7]&i[6]&i[5]&i[4]&!i[3]&!i[2]&i[1]&i[0]) | (!i[31]
+    &!i[30]&!i[29]&!i[28]&!i[27]&!i[26]&!i[25]&!i[24]&!i[23]&!i[22]&!i[21]
+    &!i[19]&!i[18]&!i[17]&!i[16]&!i[15]&!i[14]&!i[11]&!i[10]&!i[9]&!i[8]
+    &!i[7]&i[5]&i[4]&!i[3]&!i[2]&i[1]&i[0]) | (!i[31]&!i[30]&!i[29]&!i[28]
+    &!i[27]&!i[26]&!i[25]&!i[6]&i[4]&!i[3]&i[1]&i[0]) | (!i[31]&!i[29]
+    &!i[28]&!i[27]&!i[26]&!i[25]&!i[14]&!i[13]&!i[12]&!i[6]&!i[3]&!i[2]
+    &i[1]&i[0]) | (!i[31]&!i[29]&!i[28]&!i[27]&!i[26]&!i[25]&i[14]&!i[13]
+    &i[12]&!i[6]&i[4]&!i[3]&i[1]&i[0]) | (!i[31]&!i[30]&!i[29]&!i[28]
+    &!i[27]&!i[26]&!i[6]&i[5]&i[4]&!i[3]&i[1]&i[0]) | (!i[14]&!i[13]
+    &!i[12]&i[6]&i[5]&!i[4]&!i[3]&i[1]&i[0]) | (i[14]&i[6]&i[5]&!i[4]
+    &!i[3]&!i[2]&i[1]&i[0]) | (!i[12]&!i[6]&!i[5]&i[4]&!i[3]&i[1]&i[0]) | (
+    !i[14]&!i[13]&i[5]&!i[4]&!i[3]&!i[2]&i[1]&i[0]) | (i[12]&i[6]&i[5]
+    &i[4]&!i[3]&!i[2]&i[1]&i[0]) | (!i[31]&!i[30]&!i[29]&!i[28]&!i[27]
+    &!i[26]&!i[25]&!i[24]&!i[23]&!i[22]&!i[21]&!i[20]&!i[19]&!i[18]&!i[17]
+    &!i[16]&!i[15]&!i[14]&!i[13]&!i[11]&!i[10]&!i[9]&!i[8]&!i[7]&!i[6]
+    &!i[5]&!i[4]&i[3]&i[1]&i[0]) | (!i[31]&!i[30]&!i[29]&!i[28]&!i[27]
+    &!i[26]&!i[25]&!i[24]&!i[23]&!i[22]&!i[21]&!i[20]&!i[19]&!i[18]&!i[17]
+    &!i[16]&!i[15]&!i[14]&!i[13]&!i[11]&!i[10]&!i[9]&!i[8]&!i[7]&!i[6]
+    &!i[4]&!i[2]&i[1]&i[0]) | (!i[31]&!i[30]&!i[29]&!i[28]&!i[27]&!i[26]
+    &!i[25]&!i[24]&!i[23]&!i[22]&!i[21]&!i[20]&!i[19]&!i[18]&!i[17]&!i[16]
+    &!i[15]&!i[14]&!i[13]&i[6]&!i[5]&i[4]&i[3]&!i[2]&i[1]&i[0]) | (!i[31]
+    &!i[30]&!i[29]&!i[28]&!i[19]&!i[18]&!i[17]&!i[16]&!i[15]&!i[14]&!i[13]
+    &!i[12]&!i[11]&!i[10]&!i[9]&!i[8]&!i[7]&!i[6]&!i[5]&!i[4]&i[3]&i[2]
+    &i[1]&i[0]) | (i[13]&i[6]&i[5]&i[4]&!i[3]&!i[2]&i[1]&i[0]) | (!i[13]
+    &!i[6]&!i[5]&!i[4]&!i[3]&!i[2]&i[1]&i[0]) | (i[13]&!i[6]&!i[5]&i[4]
+    &!i[3]&i[1]&i[0]) | (i[6]&i[5]&!i[4]&i[3]&i[2]&i[1]&i[0]) | (!i[14]
+    &!i[12]&!i[6]&!i[4]&!i[3]&!i[2]&i[1]&i[0]) | (!i[6]&i[4]&!i[3]&i[2]
+    &i[1]&i[0]);
 
 
 endmodule

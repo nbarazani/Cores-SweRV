@@ -130,7 +130,7 @@ typedef struct packed {
 typedef struct packed {
                        logic legal;
                        logic icaf;
-                       logic icaf_second;
+                       logic icaf_f1;
                        logic perr;
                        logic sbecc;
                        logic fence_i;
@@ -171,6 +171,24 @@ typedef struct packed {
                        logic [1:0] i1rs2bype2;
                        logic [6:0] i1rs1bype3;
                        logic [6:0] i1rs2bype3;
+					   //NIBA
+					   logic i0counters;
+					   logic i1counters;
+					   
+					   logic i0_bcount_reset;
+					   logic i0_btcount_reset;
+					   logic i0_start_counters;
+					   logic i0_stop_counters;
+					   logic i0_bcount_read;
+					   logic i0_btcount_read;
+					   
+					   logic i1_bcount_reset;
+					   logic i1_btcount_reset;
+					   logic i1_start_counters;
+					   logic i1_stop_counters;
+					   logic i1_bcount_read;
+					   logic i1_btcount_read;
+					   //NIBA
                        } dest_pkt_t;
 
 typedef struct packed {
@@ -290,6 +308,14 @@ typedef struct packed {
                        logic fence_i;
                        logic pm_alu;
                        logic legal;
+					   //NIBA
+					   logic bcount_reset;
+					   logic btcount_reset;
+					   logic start_counters;
+					   logic stop_counters;
+					   logic bcount_read;
+					   logic btcount_read;
+					   //NIBA
                        } dec_pkt_t;
 
 

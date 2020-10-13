@@ -837,8 +837,8 @@ module swerv
 
    logic        ifu_i0_icaf;
    logic        ifu_i1_icaf;
-   logic        ifu_i0_icaf_second;
-   logic        ifu_i1_icaf_second;
+   logic        ifu_i0_icaf_f1;
+   logic        ifu_i1_icaf_f1;
    logic        ifu_i0_perr;
    logic        ifu_i1_perr;
    logic        ifu_i0_sbecc;
@@ -955,6 +955,17 @@ module swerv
 
    logic [15:0]            ifu_i0_cinst;
    logic [15:0]            ifu_i1_cinst;
+   
+   //NIBA
+   logic exu_i0_is_branch_e1;
+   logic exu_i1_is_branch_e1;
+   logic exu_i0_is_branch_e4;
+   logic exu_i1_is_branch_e4;
+   logic exu_i0_is_branch_t_e1;
+   logic exu_i1_is_branch_t_e1;
+   logic exu_i0_is_branch_t_e4;
+   logic exu_i1_is_branch_t_e4;
+   //NIBA
 
    trace_pkt_t  trace_rv_trace_pkt;
 
