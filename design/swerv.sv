@@ -380,7 +380,11 @@ module swerv
 
    input logic [`RV_PIC_TOTAL_INT:1]           extintsrc_req,
    input logic                   timer_int,
-   input logic                   scan_mode
+   input logic                   scan_mode,
+   //NIBA
+   output logic [31:0] branches_counter,
+   output logic [31:0] branches_taken_counter
+   //NIBA
 );
 
 `include "global.h"

@@ -286,7 +286,10 @@ module dec_decode_ctl
    input logic exu_i0_is_branch_t_e1,
    input logic exu_i1_is_branch_t_e1,
    input logic exu_i0_is_branch_t_e4,
-   input logic exu_i1_is_branch_t_e4
+   input logic exu_i1_is_branch_t_e4,
+
+   output logic [31:0] branches_counter,
+   output logic [31:0] branches_taken_counter
    //NIBA
    );
 
@@ -588,7 +591,7 @@ module dec_decode_ctl
    logic i0_is_branch_t_e1, i0_is_branch_t_e2, i0_is_branch_t_e3, i0_is_branch_t_e4, i0_is_branch_t_e4_final, i0_is_branch_t_wb;
    logic i1_is_branch_t_e1, i1_is_branch_t_e2, i1_is_branch_t_e3, i1_is_branch_t_e4, i1_is_branch_t_e4_final, i1_is_branch_t_wb;
    
-   logic [31:0] branches_counter, branches_taken_counter, new_branches_counter, new_branches_taken_counter;
+   logic [31:0] new_branches_counter, new_branches_taken_counter;
    logic i0_counters_en, i1_counters_en;
    logic counting_on, new_counting_on;
    logic [31:0] new_br_count_i0, new_brt_count_i0;

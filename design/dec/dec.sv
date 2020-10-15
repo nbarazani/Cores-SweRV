@@ -405,7 +405,10 @@ module dec
    input logic exu_i0_is_branch_t_e1,
    input logic exu_i1_is_branch_t_e1,
    input logic exu_i0_is_branch_t_e4,
-   input logic exu_i1_is_branch_t_e4
+   input logic exu_i1_is_branch_t_e4,
+
+   output logic [31:0] branches_counter,
+   output logic [31:0] branches_taken_counter
    //NIBA
 
 
