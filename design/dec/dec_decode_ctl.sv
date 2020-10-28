@@ -2388,6 +2388,7 @@ end : cam_array
    rvdffs #(1) i0wbbranchtff (.*, .en(i0_wb_data_en), .din(i0_is_branch_t_e4_final), .dout(i0_is_branch_t_wb));
    rvdffs #(1) i1wbbranchtff (.*, .en(i1_wb_data_en), .din(i1_is_branch_t_e4_final), .dout(i1_is_branch_t_wb));
    
+   assign branches_counter = 32'h1;
    assign new_br_count_i0[31:0] = wbd.i0_bcount_reset ? 32'h0 : 
 							(i0_is_branch_wb & i0_counters_en & i0_wb1_data_en & counting_on) ? (32'h1 + branches_counter[31:0]) :
 							branches_counter[31:0];
