@@ -1,3 +1,6 @@
+This is a forked version of the WD SweRV EH1 core with additional Branch Counter and Branch-Taken Counter.
+It was used as part of a BSc final project
+
 # EH1 SweRV RISC-V Core<sup>TM</sup> 1.7 from Western Digital
 
 This repository contains the SweRV EH1 Core<sup>TM</sup>  design RTL
